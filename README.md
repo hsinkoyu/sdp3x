@@ -1,2 +1,2 @@
-# sdp3x
-Sensirion SDP3x-Digital Linux device driver
+# SDP3x
+Linux device driver for the Sensirion SDP31, SDP32 digital differential pressure sensors.
