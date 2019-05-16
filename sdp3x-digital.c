@@ -39,6 +39,7 @@ enum sdp3x_cmd {
 
 	START_CONTINUOUS_MEASUREMENT,
 	STOP_CONTINUOUS_MEASUREMENT,
+	TRIGGERED_MEASUREMENT,
 	RESET_SENSOR,
 	ENTER_SLEEP_MODE,
 	EXIT_SLEEP_MODE,
@@ -94,9 +95,10 @@ static int sdp3x_recv_data(struct i2c_client *client, char *data, int size)
 
 	if (drv_data->mode == MEASURING) {
 		ret = sdp3x_i2c_read(client, data, size);
-	} else if (drv_data->last_cmd == READ_PRODUCT_ID) {
-		ret = sdp3x_i2c_read(client, data, size);
-		drv_data->last_cmd = INVALID;
+	} else if (drv_data->mode == IDLE) {
+		if (drv_data->last_cmd == READ_PRODUCT_ID ||
+			drv_data->last_cmd == TRIGGERED_MEASUREMENT)
+			ret = sdp3x_i2c_read(client, data, size);
 	}
 
 	if (ret == size) {
@@ -155,6 +157,8 @@ static int sdp3x_send_cmd(struct i2c_client *client, enum sdp3x_cmd cmd)
 					" err=%d\n", ret);
 			} else {
 				pr_info("[START_CONTINUOUS_MEASUREMENT] succeeded\n");
+				/* the first measurement result is available after 8ms */
+				mdelay(8);
 				drv_data->mode = MEASURING;
 				hrtimer_start(&drv_data->sampling_timer,
 					ns_to_ktime(drv_data->sampling_period_us * 1000L),
@@ -186,6 +190,43 @@ static int sdp3x_send_cmd(struct i2c_client *client, enum sdp3x_cmd cmd)
 		} else {
 			pr_err("[STOP_CONTINUOUS_MEASUREMENT] E: the sensor is not in "
 				"measuring mode\n");
+			ret = -EPERM;
+		}
+		break;
+	/*
+	 * Triggered measurement can be started up in different configurations by
+	 * a set of commands.
+	 *
+	 * Command code (Hex) | Temperature compensation | Clock stretching
+	 * ------------------------------------------------------------------------
+	 * 0x3624				Mass flow
+	 * 0x3726				Mass flow				   Yes
+	 * 0x362F				Differential pressure
+	 * 0x372D				Differential pressure	   Yes
+	 *
+	 * For simplicity, we force to use 0x362F.
+	 */
+	case TRIGGERED_MEASUREMENT:
+		if (drv_data->mode == IDLE) {
+			buf[0] = 0x36;
+			buf[1] = 0x2f;
+			ret = sdp3x_i2c_write(client, buf, 2);
+			if (ret < 0) {
+				pr_err("[TRIGGERED_MEASUREMENT] failed sending command,"
+					" err=%d\n", ret);
+			} else {
+				pr_info("[TRIGGERED_MEASUREMENT] succeeded\n");
+				/*
+				 * during the max. 50ms that the sensor is measuring, no
+				 * command can be sent to the sensor
+				 */
+				mdelay(50);
+				/* read out the result */
+				queue_work(drv_data->workqueue, &drv_data->polling_work);
+			}
+		} else {
+			pr_err("[TRIGGERED_MEASUREMENT] E: the sensor is not in "
+				"idle mode\n");
 			ret = -EPERM;
 		}
 		break;
@@ -336,6 +377,7 @@ static ssize_t sdp3x_productid_show(struct device *dev,
 
 	if (drv_data->mode == IDLE && drv_data->last_cmd == READ_PRODUCT_ID) {
 		size = sdp3x_recv_data(client, data, sizeof(data));
+		drv_data->last_cmd = INVALID;
 	}
 
 	if (size > 0) {
@@ -393,13 +435,17 @@ static ssize_t sdp3x_measurement_show(struct device *dev,
 {
 	struct i2c_client *client = container_of(dev, struct i2c_client, dev);
 	struct sdp3x_data *drv_data = i2c_get_clientdata(client);
+	bool triggered = (drv_data->mode == IDLE &&
+		drv_data->last_cmd == TRIGGERED_MEASUREMENT);
 	int ret;
 
-	if (drv_data->mode == MEASURING) {
+	if (drv_data->mode == MEASURING || triggered) {
 		mutex_lock(&sysfs_lock);
 		ret = sprintf(buf, "%d %d %d\n", drv_data->dp, drv_data->temp,
 			drv_data->scale_factor);
 		mutex_unlock(&sysfs_lock);
+		if (triggered)
+			drv_data->last_cmd = INVALID;
 	} else {
 		*buf = '\0';
 		ret = 0;
