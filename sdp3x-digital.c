@@ -199,10 +199,10 @@ static int sdp3x_send_cmd(struct i2c_client *client, enum sdp3x_cmd cmd)
 	 *
 	 * Command code (Hex) | Temperature compensation | Clock stretching
 	 * ------------------------------------------------------------------------
-	 * 0x3624				Mass flow
-	 * 0x3726				Mass flow				   Yes
-	 * 0x362F				Differential pressure
-	 * 0x372D				Differential pressure	   Yes
+	 * 0x3624               Mass flow
+	 * 0x3726               Mass flow                  Yes
+	 * 0x362F               Differential pressure
+	 * 0x372D               Differential pressure      Yes
 	 *
 	 * For simplicity, we force to use 0x362F.
 	 */
