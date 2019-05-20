@@ -233,9 +233,16 @@ static int sdp3x_send_cmd(struct i2c_client *client, enum sdp3x_cmd cmd)
 	case RESET_SENSOR:
 		/* the sensor cannot be soft reset in sleep mode */
 		if (drv_data->mode != SLEEP) {
-			buf[0] = 0x00;
-			buf[1] = 0x06;
-			ret = sdp3x_i2c_write(client, buf, 2);
+			struct i2c_adapter *adap = client->adapter;
+			struct i2c_msg msg;
+
+			buf[0] = 0x06; /* software reset */
+			msg.addr = 0x00; /* general call address */
+			msg.flags = 0;
+			msg.len = 1;
+			msg.buf = buf;
+
+			ret = i2c_transfer(adap, &msg, 1);
 			if (ret < 0) {
 				pr_err("[RESET_SENSOR] failed sending command, err=%d\n", ret);
 			} else {
