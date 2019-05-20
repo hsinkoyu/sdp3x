@@ -69,6 +69,7 @@ struct sdp3x_data {
 
 #define sdp3x_i2c_write(client, buf, count) i2c_master_send(client, buf, count)
 #define sdp3x_i2c_read(client, buf, count) i2c_master_recv(client, buf, count)
+#define sdp3x_i2c_transfer(adap, msgs, num) i2c_transfer(adap, msgs, num)
 
 #define SDP3X_CRC8_POLYNOMIAL 0x31
 #define SDP3X_CRC8_INIT       0xFF
@@ -242,7 +243,7 @@ static int sdp3x_send_cmd(struct i2c_client *client, enum sdp3x_cmd cmd)
 			msg.len = 1;
 			msg.buf = buf;
 
-			ret = i2c_transfer(adap, &msg, 1);
+			ret = sdp3x_i2c_transfer(adap, &msg, 1);
 			if (ret < 0) {
 				pr_err("[RESET_SENSOR] failed sending command, err=%d\n", ret);
 			} else {
