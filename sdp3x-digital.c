@@ -332,16 +332,10 @@ static ssize_t sdp3x_cmd_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct i2c_client *client = container_of(dev, struct i2c_client, dev);
-	char c = 0;
-	int cmd = -1;
+	int cmd = INVALID;
 
-	if (buf != NULL) {
-		sscanf(buf, "%c", &c);
-		if (c >= '0' && c <= '9')
-			cmd = c - '0';
-		else if (c >= 'a' && c <= 'z')
-			cmd = c - 'a' + 10;
-	}
+	if (buf != NULL)
+		sscanf(buf, "%d", &cmd);
 
 	sdp3x_send_cmd(client, cmd);
 
@@ -581,7 +575,7 @@ static int sdp3x_probe(struct i2c_client *client,
 
 	drv_data->irq_gpio = devm_gpiod_get_optional(&client->dev, "irq",
 		GPIOD_IN);
-	if (IS_ERR(drv_data->irq_gpio)) {
+	if (IS_ERR_OR_NULL(drv_data->irq_gpio)) {
 		pr_info("keep IRQn pin floating when not used\n");
 	} else {
 		int irq = gpiod_to_irq(drv_data->irq_gpio);
@@ -592,8 +586,9 @@ static int sdp3x_probe(struct i2c_client *client,
 			return irq;
 		}
 
-		error = devm_request_any_context_irq(&client->dev, irq, new_measurement_handler,
-			IRQ_TYPE_EDGE_BOTH, dev_name(&client->dev), client);
+		error = devm_request_any_context_irq(&client->dev, irq,
+			new_measurement_handler, IRQ_TYPE_EDGE_BOTH,
+			dev_name(&client->dev), client);
 		if (error < 0) {
 			pr_err("failed claiming irq for gpio-%d, err=%d\n",
 				desc_to_gpio(drv_data->irq_gpio), error);
