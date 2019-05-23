@@ -2,13 +2,14 @@
 Linux device driver for the Sensirion SDP31, SDP32 digital differential pressure sensors
 
 **Device tree bindings for SDP3x:**
+
 Required properties:
-    - compatible: must be "sensirion,sdp3x"
-    - reg: i2c slave address of the chip
+- compatible: must be "sensirion,sdp3x"
+- reg: i2c slave address of the chip
 
 Optional properties:
-    - irq-gpio: interrupt gpio the chip's IRQn pin is connected to
-    - sampling-period-us: sampling period to poll sensor data, default 10000 microseconds
+- irq-gpio: interrupt gpio the chip's IRQn pin is connected to
+- sampling-period-us: sampling period to poll sensor data, default 10000 microseconds
 
 **Example:**
 
