@@ -98,8 +98,10 @@ static int sdp3x_recv_data(struct i2c_client *client, char *data, int size)
 		ret = sdp3x_i2c_read(client, data, size);
 	} else if (drv_data->mode == IDLE) {
 		if (drv_data->last_cmd == READ_PRODUCT_ID ||
-			drv_data->last_cmd == TRIGGERED_MEASUREMENT)
+			drv_data->last_cmd == TRIGGERED_MEASUREMENT) {
 			ret = sdp3x_i2c_read(client, data, size);
+			drv_data->last_cmd = INVALID;
+		}
 	}
 
 	if (ret == size) {
@@ -222,8 +224,6 @@ static int sdp3x_send_cmd(struct i2c_client *client, enum sdp3x_cmd cmd)
 				 * command can be sent to the sensor
 				 */
 				mdelay(50);
-				/* read out the result */
-				queue_work(drv_data->workqueue, &drv_data->polling_work);
 			}
 		} else {
 			pr_err("[TRIGGERED_MEASUREMENT] E: the sensor is not in "
@@ -377,11 +377,9 @@ static ssize_t sdp3x_productid_show(struct device *dev,
 	int i;
 	int buf_size = 0;
 
-	if (drv_data->mode == IDLE && drv_data->last_cmd == READ_PRODUCT_ID) {
-		size = sdp3x_recv_data(client, data, sizeof(data));
-		drv_data->last_cmd = INVALID;
-	}
-
+	if (drv_data->mode == IDLE && drv_data->last_cmd == READ_PRODUCT_ID)
+		size = sdp3x_recv_data(client, data, sizeof(data)); 
+ 
 	if (size > 0) {
 		buf_size = sprintf(buf, "0x");
 		for (i = 0; i < size; i++) {
@@ -442,12 +440,15 @@ static ssize_t sdp3x_measurement_show(struct device *dev,
 	int ret;
 
 	if (drv_data->mode == MEASURING || triggered) {
+		if (triggered) {
+			/* read out the result */
+			queue_work(drv_data->workqueue, &drv_data->polling_work);
+			flush_work(&drv_data->polling_work);
+		} 
 		mutex_lock(&sysfs_lock);
 		ret = sprintf(buf, "%d %d %d\n", drv_data->dp, drv_data->temp,
 			drv_data->scale_factor);
 		mutex_unlock(&sysfs_lock);
-		if (triggered)
-			drv_data->last_cmd = INVALID;
 	} else {
 		*buf = '\0';
 		ret = 0;
