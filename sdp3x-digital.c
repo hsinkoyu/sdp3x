@@ -76,13 +76,11 @@ struct sdp3x_data {
 
 DECLARE_CRC8_TABLE(sdp3x_crc8_table);
 
-/* this lock is to protect device from reading and writing at the same time */
+/*
+ * this lock is to protect device from being read and being written at the same
+ * time
+ */
 static DEFINE_MUTEX(i2c_transfer_lock);
-/* solution for measured data readers-writers problem */
-static DEFINE_MUTEX(mutex);
-static DEFINE_SEMAPHORE(writer);
-static int reader_count = 0;
-
 
 /**
  * sdp3x_recv_data -
@@ -448,21 +446,8 @@ static ssize_t sdp3x_measurement_show(struct device *dev,
 			queue_work(drv_data->workqueue, &drv_data->polling_work);
 			flush_work(&drv_data->polling_work);
 		}
-
-		mutex_lock(&mutex);
-		reader_count++;
-		if (reader_count == 1)
-			down(&writer);
-		mutex_unlock(&mutex);
-
 		ret = sprintf(buf, "%d %d %d\n", drv_data->dp, drv_data->temp,
 			drv_data->scale_factor);
-
-		mutex_lock(&mutex);
-		reader_count--;
-		if (reader_count == 0)
-			up(&writer);
-		mutex_unlock(&mutex);
 	} else {
 		*buf = '\0';
 		ret = 0;
@@ -531,11 +516,9 @@ static void sdp3x_polling_worker(struct work_struct *work) {
 	char data[9];
 
 	if (sdp3x_recv_data(drv_data->client, data, sizeof(data)) > 0) {
-		down(&writer);
 		drv_data->dp = (data[0] << 8) | data[1];
 		drv_data->temp = (data[3] << 8) | data[4];
 		drv_data->scale_factor = (data[6] << 8) | data[7];
-		up(&writer);
 	}
 }
 
