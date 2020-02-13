@@ -62,9 +62,9 @@ struct sdp3x_data {
 	 */
 	struct workqueue_struct *workqueue;
 	struct work_struct polling_work;
-	short dp; /* differential pressure raw data */
-	short temp; /* temperature raw data */
-	short scale_factor; /* scale factor differential pressure raw data */
+	int dp; /* differential pressure raw data */
+	int temp; /* temperature raw data */
+	int scale_factor; /* scale factor differential pressure raw data */
 };
 
 #define sdp3x_i2c_write(client, buf, count) i2c_master_send(client, buf, count)
@@ -77,8 +77,7 @@ struct sdp3x_data {
 DECLARE_CRC8_TABLE(sdp3x_crc8_table);
 
 /*
- * this lock is to protect device from being read and being written at the same
- * time
+ * this lock is to protect device from being read and written at the same time
  */
 static DEFINE_MUTEX(i2c_transfer_lock);
 
