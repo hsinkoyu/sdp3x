@@ -515,9 +515,9 @@ static void sdp3x_polling_worker(struct work_struct *work) {
 	char data[9];
 
 	if (sdp3x_recv_data(drv_data->client, data, sizeof(data)) > 0) {
-		drv_data->dp = (data[0] << 8) | data[1];
-		drv_data->temp = (data[3] << 8) | data[4];
-		drv_data->scale_factor = (data[6] << 8) | data[7];
+		drv_data->dp = (short)((data[0] << 8) | data[1]);
+		drv_data->temp = (short)((data[3] << 8) | data[4]);
+		drv_data->scale_factor = (short)((data[6] << 8) | data[7]);
 	}
 }
 
